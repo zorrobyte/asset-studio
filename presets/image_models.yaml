@@ -18,8 +18,7 @@
   tier: fast
   family: qwen
   est_s: 8
-  recommended: true
-  description: Recommended. Qwen-Image-2512 with the official 8-step Lightning LoRA, fp8 weights fully on the GPU. Won the blind test on prompt adherence and clean surfaces; ~7 s per image.
+  description: Qwen-Image-2512 with the official 8-step Lightning LoRA, fp8 weights fully on the GPU. Won the first blind test on prompt adherence and clean surfaces; ~7 s per image. Superseded as default by Klein 9B at 2048².
   params: {steps: 8, true_cfg_scale: 1.0, width: 1328, height: 1328, mode: fp8_resident,
            lightning_lora: {repo: lightx2v/Qwen-Image-2512-Lightning, revision: a52649c9d0f6e1a248bff13f0df33bb8a2abdb52,
                             file: Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors}}
@@ -51,13 +50,14 @@
            config_repo: Tongyi-MAI/Z-Image-Turbo, config_revision: f332072aa78be7aecdf3ee76d5c247082da564a6,
            transformer_file: diffusion_models/z_image_turbo_bf16.safetensors, text_encoder_file: text_encoders/qwen_3_4b.safetensors}
 - id: flux2-klein-9b
-  label: FLUX.2 Klein 9B
+  label: FLUX.2 Klein 9B (2048²)
   tier: fast
   family: klein
-  est_s: 10
+  est_s: 14
+  recommended: true
   license: FLUX Non-Commercial License (accept on huggingface.co/black-forest-labs/FLUX.2-klein-9B)
-  description: Distilled FLUX.2 Klein 9B at 1536² (on-disk fp8 transformer dequantized to bf16; bf16 Qwen3-8B text encoder from the HF repo), 4 steps. Best of the fast models; ~5 s per image after the ~30 s load (~24 GB peak).
-  params: {steps: 4, guidance_scale: 1.0, width: 1536, height: 1536, distilled: true, sequential: true, text_encoder_from_hub: true,
+  description: "Default, at maximum quality. Distilled FLUX.2 Klein 9B (on-disk fp8 transformer dequantized to bf16; full bf16 Qwen3-8B text encoder from the HF repo) at the 4 MP ceiling, 2048². Steps (4) and guidance (1.0) are fixed by the distillation (BFL reference config), so resolution and the text encoder are the only quality levers and both are maxed. ~29 GB peak - an asset-lane Pixal3D run waits for it (OOM wait/retry) rather than sharing the GPU."
+  params: {steps: 4, guidance_scale: 1.0, width: 2048, height: 2048, distilled: true, sequential: true, text_encoder_from_hub: true,
            config_repo: black-forest-labs/FLUX.2-klein-9B, config_revision: 92196c8e11f7b6cf2b7493e037d8c5345c559216,
            transformer_file: diffusion_models/flux-2-klein-9b-fp8.safetensors, text_encoder_file: text_encoders/qwen_3_8b_fp8mixed.safetensors}
 - id: qwen-image-2512

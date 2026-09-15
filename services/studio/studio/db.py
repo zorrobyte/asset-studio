@@ -60,7 +60,7 @@ MIGRATIONS = [
 DEFAULT_SETTINGS = {
     "auto_process": False,       # selected images start 3D generation immediately (else they are held for review)
     "default_variations": 4,
-    "default_image_model": "qwen-image-2512-lightning-8",
+    "default_image_model": "flux2-klein-9b",
     "default_quality": "balanced",
     "default_style": "mobile_factory",
     "default_target_triangles": 20000,
