@@ -382,7 +382,8 @@ class JobRun:
         log_path = d / "log.txt"
         self.log(f"Pixal3D {req['mode']} generation at {px['resolution']} (low_vram={px['low_vram']}), master export "
                  f"{master['decimation_target']} tris / {master['texture_size']}px")
-        run = self._run_gpu_stage("pixal3d", name, ["python", "-m", "pixal3d_worker.generate", "--request", str(d / "request.json")],
+        # submit hands the job to the resident session in the pixal3d-worker container (or runs it in-process)
+        run = self._run_gpu_stage("pixal3d", name, ["python", "-m", "pixal3d_worker.submit", "--request", str(d / "request.json")],
                                   log_path, ["pixal3d", "master"])
         out = json.loads((d / "output.json").read_text(encoding="utf-8"))
         shutil.copy2(d / out["master_glb"], self.art / "master.glb")

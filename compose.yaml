@@ -78,11 +78,21 @@ services:
     build: { context: ., dockerfile: docker/pixal3d-worker.Dockerfile }
     image: asset-studio/pixal3d-worker:local
     container_name: studio-pixal3d-worker
+    command: ["sh", "/app/pixal3d_worker/entrypoint.sh"]   # stage runner + resident Pixal3D session
     environment:
       HF_HOME: /models/hf
       TORCH_HOME: /models/torch
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
       TRANSFORMERS_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      STUDIO_REMBG_MODEL: ${STUDIO_REMBG_MODEL:-briaai/RMBG-2.0}   # must match the worker's value (the resident session loads it)
+      STUDIO_PIXAL3D_RESIDENT: ${STUDIO_PIXAL3D_RESIDENT:-1}     # 0 = load the models per job as before (frees ~16 GB of VM RAM)
+      # low-VRAM mode re-creates the CPU copy of each model after every stage; with glibc's default (dynamic) mmap
+      # threshold those multi-MB tensors land in heap arenas and freed memory is never returned -> RSS ratchets up
+      # in the resident process (37 GB after one job; the VM OOM-killed the second). Fixed thresholds: large blocks
+      # are mmapped and unmapped on free.
+      MALLOC_MMAP_THRESHOLD_: "131072"
+      MALLOC_TRIM_THRESHOLD_: "16777216"
+      MALLOC_ARENA_MAX: "2"
     volumes:
       - studio-jobs:/jobs
       - studio-models:/models

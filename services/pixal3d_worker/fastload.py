@@ -25,6 +25,20 @@ _NOOP_INITS = ("uniform_", "normal_", "trunc_normal_", "kaiming_uniform_", "kaim
                "xavier_uniform_", "xavier_normal_", "orthogonal_")
 
 
+def _drop_page_cache(path: str) -> None:
+    """Evict a checkpoint file from the page cache once its tensors are in process memory. The 23 GB of
+    checkpoints otherwise stay cached in the 48 GB Docker VM and push the resident weights (and ComfyUI) into
+    swap, which made the first job after a session start ~2 minutes slower than the following ones."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        finally:
+            os.close(fd)
+    except (OSError, AttributeError):
+        pass
+
+
 def install_skip_random_init(log=print) -> None:
     import json
 
@@ -45,26 +59,35 @@ def install_skip_random_init(log=print) -> None:
         return hf_hub_download(repo_id, f"{name}.json"), hf_hub_download(repo_id, f"{name}.safetensors")
 
     def fast_from_pretrained(path: str, **kwargs):
+        # Any failure here must fall back to the upstream loader itself: upstream's pipeline loader retries a
+        # failed local load with the Hub name, which cannot work offline and hides the real error.
         t0 = time.time()
-        config_file, model_file = _resolve(path)
-        with open(config_file, "r") as f:
-            config = json.load(f)
-        saved = {n: getattr(init, n) for n in _NOOP_INITS}
         try:
-            for n in _NOOP_INITS:
-                setattr(init, n, lambda tensor, *a, **k: tensor)
-            model = models.__getattr__(config["name"])(**config["args"], **kwargs)
-        finally:
-            for n, fn in saved.items():
-                setattr(init, n, fn)
-        state = load_file(model_file)
-        missing, unexpected = model.load_state_dict(state, strict=False)
+            config_file, model_file = _resolve(path)
+            with open(config_file, "r") as f:
+                config = json.load(f)
+            saved = {n: getattr(init, n) for n in _NOOP_INITS}
+            try:
+                for n in _NOOP_INITS:
+                    setattr(init, n, lambda tensor, *a, **k: tensor)
+                model = models.__getattr__(config["name"])(**config["args"], **kwargs)
+            finally:
+                for n, fn in saved.items():
+                    setattr(init, n, fn)
+            state = load_file(model_file)
+            missing, unexpected = model.load_state_dict(state, strict=False)
+            n_tensors = len(state)
+            del state
+            _drop_page_cache(model_file)
+        except Exception as e:  # noqa: BLE001
+            log(f"[fastload] {os.path.basename(path)}: fast path failed ({type(e).__name__}: {e}); using upstream loader")
+            return original(path, **kwargs)
         if missing:
             log(f"[fastload] {os.path.basename(path)}: checkpoint lacks {len(missing)} keys "
                 f"(e.g. {missing[:3]}); reloading with upstream init")
-            del model, state
+            del model
             return original(path, **kwargs)
-        log(f"[fastload] {os.path.basename(path)}: {len(state)} tensors in {time.time() - t0:.1f}s"
+        log(f"[fastload] {os.path.basename(path)}: {n_tensors} tensors in {time.time() - t0:.1f}s"
             + (f", {len(unexpected)} unexpected keys ignored" if unexpected else ""))
         return model
 
