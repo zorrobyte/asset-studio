@@ -86,6 +86,12 @@ def main():
     phase("load")
     t0 = time.time()
     import o_voxel  # noqa: E402
+    if os.environ.get("STUDIO_FASTLOAD", "1") != "0":
+        # output-neutral speedups for the upstream loaders/export (see fastload.py); STUDIO_FASTLOAD=0 disables
+        from pixal3d_worker import fastload  # noqa: E402
+        fastload.install_skip_random_init()
+        fastload.install_fast_seam_padding(band_px=int(os.environ.get("STUDIO_INPAINT_BAND", "0")),
+                                           validate=os.environ.get("STUDIO_FASTLOAD_VALIDATE") == "1")
     if req.get("mode") == "multiview":
         from pixal3d_worker.multiview import run_multiview  # noqa: E402
         result = run_multiview(req, out_dir, timings, vram, warnings, vram_snapshot)
